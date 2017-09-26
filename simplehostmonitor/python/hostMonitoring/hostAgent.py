@@ -35,7 +35,9 @@ if access_token is not None:
 else:
     print "Failed to retrieve access token, please check log for detail."
     try:
-    sys.exit(0)
+        sys.exit(0)
+    except:
+        pass
 
 hostName = socket.gethostname()
 while True:
