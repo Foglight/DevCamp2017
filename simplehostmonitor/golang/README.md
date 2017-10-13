@@ -1,5 +1,5 @@
 # Summary
-- hostmonitor: A simple host resource monitor based on foglight rest api, support cpu/mem/disk/network utilization.
+- hostmonitor: A simple host resource monitoring agent based on foglight REST api, support cpu/mem/disk/network utilization.
 # Usage
 - Get user token in Foglight
 - Run hostmonitor on target host, support windows, linux, macos
