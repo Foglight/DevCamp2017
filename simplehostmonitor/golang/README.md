@@ -6,4 +6,4 @@
 # Build
 - require go 1.8+ 
 - go get -d
-- go build
+- go build -o hostmonitor[.exe]
