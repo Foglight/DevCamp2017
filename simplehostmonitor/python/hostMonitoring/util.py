@@ -6,9 +6,9 @@ import time
 
 REST_API_PREFIX = "/api/v1"
 
-def retrieve_token(serverURL):
+def retrieve_token(serverURL, authToken):
     loginURL = serverURL + REST_API_PREFIX +"/security/login"
-    body_value = {"authToken": "00ef5e6bac4c0f:844a831861de17e6f88bddee"}
+    body_value = {"authToken": authToken}
     body_value = urllib.urlencode(body_value)
     request = urllib2.Request(loginURL, body_value)
     result = urllib2.urlopen(request).read()
