@@ -26,9 +26,14 @@ url = raw_input(prompt)
 
 print "The url is " + url
 
+print "Please enter the auth token"
+
+prompt = ">"
+authToken = raw_input(prompt)
+
 print "Try to retrieve token from the url..."
 
-access_token = util.retrieve_token(url)
+access_token = util.retrieve_token(url, authToken)
 
 if access_token is not None:
     print "Retrieve access token successfully."
