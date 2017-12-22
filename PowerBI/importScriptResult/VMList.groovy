@@ -1,4 +1,5 @@
 import java.text.SimpleDateFormat;
+import com.quest.nitro.service.sl.interfaces.data.ObservationQuery.RetrievalType;
 
 ts = server.TopologyService;
 ds = server.DataService;
@@ -7,8 +8,15 @@ def countLimit=50
 def logException = false
 org.apache.commons.logging.Log log = org.apache.commons.logging.LogFactory.getLog("Q1.groovy");
 
-SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
-currentTime = df.format(new Date());
+currentDate = new Date();
+
+endTime = currentDate.getTime()
+
+Calendar c = Calendar.getInstance();
+c.setTime(currentDate);
+c.add(Calendar.DAY_OF_MONTH, -1);
+
+startTime = c.getTime().getTime();
 
 vmType = ts.getType("VMWVirtualMachine");
 
@@ -16,11 +24,17 @@ vmSet = ts.getObjectsOfType(vmType)
 
 def output = new StringBuilder();
 
-output.append("Current Date").append("\t").append("vCenter Name").append("\t").append("cluster name").append("\t").append("esxhost ").append("\t").append("vm name").append("\t").append("VM CPU allocated(MHz)").append("\t").append("VM CPU used(MHz)").append("\t").append("VM memory allocated(GB)").append("\t").append("VM memory used(GB)").append("\t").append("datastore name").append("\t").append("VM ds allocated(GB)").append("\t").append("VM ds used(GB)").append("\n")
+output.append("Start Time").append(",").append("End Time").append(",").append("vCenter Name").append(",").append("cluster name").append(",").append("esxhost ").append(",").append("vm name").append(",").append("VM CPU allocated(MHz)").append(",").append("VM CPU used(MHz)").append(",").append("VM memory allocated(GB)").append(",").append("VM memory used(GB)").append(",").append("datastore name").append(",").append("VM ds allocated(GB)").append(",").append("VM ds used(GB)").append("\n")
+
+
+metricsToObjects = getVmMetricsToObjMap();
+def result = batchQueryVmMetrics();
+
 
 
 def count=0
 for (vm in vmSet) {
+
 	if(count >= countLimit){
 		continue
 	}
@@ -39,52 +53,64 @@ for (vm in vmSet) {
 		}
 		vmName = vm.name;
 		
-		vmCpus = vm?.cpus?.hostCPUs;
-		vmMemory = vm?.memory;
+		vmCpus = vm?.get("cpus/hostCPUs");		
+		vmMemory = vm?.get("memory");
 		if(vmCpus == null || vmMemory == null){
 			continue
 		}
 		
-		vmCPUUsed = ds.retrieveLatestValue(vm, "usedHz")?.getValue()?.getAvg();
-		vmCPUUtilization = ds.retrieveLatestValue(vmCpus, "utilization")?.getValue()?.getAvg();
-		def vmCpuAllocated;
-		
-		if (vmCPUUsed != null) {
-			vmCPUUsed =  new BigDecimal(vmCPUUsed/Math.pow(1000,2)).setScale(1, BigDecimal.ROUND_HALF_UP).doubleValue();		
-			vmCpuAllocated = new BigDecimal(vmCPUUsed*100/vmCPUUtilization).setScale(1, BigDecimal.ROUND_HALF_UP).doubleValue();
-		}
-		
-		vmMemAllocated = ds.retrieveLatestValue(vmMemory, "allocated")?.getValue()?.getAvg();
-		vmMemUsed = ds.retrieveLatestValue(vmMemory, "consumed")?.getValue()?.getAvg();
-		if (vmMemAllocated != null) {
-			vmMemAllocated = new BigDecimal(vmMemAllocated/1024).setScale(1, BigDecimal.ROUND_HALF_UP).doubleValue();
-		}
-		
-		if (vmMemUsed != null) {
-			vmMemUsed = new BigDecimal(vmMemUsed/Math.pow(1024,2)).setScale(1, BigDecimal.ROUND_HALF_UP).doubleValue();
-		}
+		dsUsageList = vm.get("storage/datastoreUsage");
 
-		//output.append(vcName).append("\t").append(clusterName).append("\t").append(esxName).append("\t").append(vmName).append("\t").append(vmCpuAllocated).append("\t").append(vmCPUUsed).append("\t").append(vmMemAllocated).append("\t").append(vmMemUsed).append("\t");
-		dsUsageList = vm.storage?.datastoreUsage;
-		def outputMid = new StringBuilder();
-		outputMid.append(currentTime).append("\t").append(vcName).append("\t").append(clusterName).append("\t").append(esxName).append("\t").append(vmName).append("\t").append(vmCpuAllocated).append("\t").append(vmCPUUsed).append("\t").append(vmMemAllocated).append("\t").append(vmMemUsed).append("\t");
 		
-		for (dsUsage in dsUsageList) {
-			def outputds = new StringBuilder(outputMid.toString());
+		cpuUsedValues = result.getValues(vm, "usedHz");
+		cpuUtilizationValues = result.getValues(vmCpus, "utilization");
 		
-			dsName = dsUsage.datastore?.name;
-			committed = ds.retrieveLatestValue(dsUsage, "committed")?.getValue()?.getAvg();
-			uncommitted = ds.retrieveLatestValue(dsUsage, "uncommitted")?.getValue()?.getAvg();		
-			allocatedSpace  = committed + uncommitted; 
-			if (committed != null) {
-				committed = committed/Math.pow(1024,3);
-			}
-			if (allocatedSpace != null) {
-				allocatedSpace = allocatedSpace/Math.pow(1024,3);
-			}
-			outputds.append(dsName).append("\t").append(Math.round(allocatedSpace)).append("\t").append(Math.round(committed)).append("\n");
-			output.append(outputds);
-		}                
+		memoryAllocatedValues = result.getValues(vmMemory, "allocated");
+		memoryUsed = result.getValues(vmMemory, "consumed");
+		
+		for (int i = 0; i < 23; i++) {
+		    def start = cpuUsedValues.get(i).getStartTime();
+			def end = cpuUsedValues.get(i).getEndTime()
+		
+		    vmCPUUsed = cpuUsedValues.get(i)?.getValue()?.getAvg();
+			vmCPUUtilization = cpuUtilizationValues.get(i)?.getValue()?.getAvg();
+			def vmCpuAllocated;
+			
+			if (vmCPUUsed != null && !vmCPUUsed.isNaN()) {
+			    vmCPUUsed =  new BigDecimal(vmCPUUsed/Math.pow(1000,2)).setScale(1, BigDecimal.ROUND_HALF_UP).doubleValue();		
+			    vmCpuAllocated = new BigDecimal(vmCPUUsed*100/vmCPUUtilization).setScale(1, BigDecimal.ROUND_HALF_UP).doubleValue();
+		    }
+			
+			vmMemAllocated = memoryAllocatedValues.get(i)?.getValue()?.getAvg();
+			vmMemUsed = memoryUsed.get(i)?.getValue()?.getAvg();
+			
+			if (vmMemAllocated != null && !vmMemAllocated.isNaN()) {
+			    vmMemAllocated = new BigDecimal(vmMemAllocated/1024).setScale(1, BigDecimal.ROUND_HALF_UP).doubleValue();
+		    }
+			
+		    if (vmMemUsed != null && !vmMemUsed.isNaN()) {
+			    vmMemUsed = new BigDecimal(vmMemUsed/Math.pow(1024,2)).setScale(1, BigDecimal.ROUND_HALF_UP).doubleValue();
+		    }
+			def outputMid = new StringBuilder();
+			outputMid.append(start).append(",").append(end).append(",").append(vcName).append(",").append(clusterName).append(",").append(esxName).append(",").append(vmName).append(",").append(vmCpuAllocated).append(",").append(vmCPUUsed).append(",").append(vmMemAllocated).append(",").append(vmMemUsed).append(",");
+            
+					
+		    for (dsUsage in dsUsageList) {
+		        def outputds = new StringBuilder(outputMid.toString());
+				dsName = dsUsage.datastore?.name;
+				committed = result.getValues(dsUsage, "committed").get(i)?.getValue()?.getAvg();
+				uncommitted = result.getValues(dsUsage, "uncommitted").get(i)?.getValue()?.getAvg();
+				allocatedSpace  = committed + uncommitted; 
+			    if (committed != null && !committed.isNaN()) {
+				    committed = committed/Math.pow(1024,3);
+			    }
+			    if (allocatedSpace != null && !allocatedSpace.isNaN()) {
+				    allocatedSpace = allocatedSpace/Math.pow(1024,3);
+			    }
+			    outputds.append(dsName).append(",").append(Math.round(allocatedSpace)).append(",").append(Math.round(committed)).append("\n");
+			    output.append(outputds);
+		    }
+		}			
 		count++
 	}catch(Exception e){
 		if(logException){
@@ -96,3 +122,55 @@ for (vm in vmSet) {
 }
 log.info("powerbi: "+output.toString())
 return output.toString();
+
+def addObjToSet(obj, objSet) {
+    if (obj) {
+	    objSet.add(obj);
+	}
+}
+
+def getVmMetricsToObjMap() {
+    def metricsToObjects = [:];
+	def vmCpuSet = [] as Set;
+	def vmMemSet = [] as Set;
+	def dsUsageSet = [] as Set;
+    try{        
+	    metricsToObjects.put("usedHz", vmSet);
+        for (vm in vmSet) {	    
+            isTemplate = vm.isTemplate;
+		    if(isTemplate) {
+			    continue;
+		    }	
+            addObjToSet(vm?.get("cpus/hostCPUs") ,vmCpuSet);			
+            addObjToSet(vm?.get("memory") ,vmMemSet);
+			datastoreUsage = vm?.get("storage/datastoreUsage");
+            for (dsUsage in datastoreUsage){
+			    addObjToSet(dsUsage, dsUsageSet);
+            }	
+        }
+		metricsToObjects.put("utilization", vmCpuSet);
+		metricsToObjects.put("allocated", vmMemSet);
+		metricsToObjects.put("consumed", vmMemSet);
+		metricsToObjects.put("committed", dsUsageSet);
+		metricsToObjects.put("uncommitted", dsUsageSet);		
+	}catch(Exception e){
+		if(logException){
+			StringWriter errors = new StringWriter();
+			e.printStackTrace(new PrintWriter(errors));
+		}
+	}
+	return metricsToObjects;
+}
+
+def batchQueryVmMetrics() {    
+    query = ds.createObservationQuery();
+	query.setStartTime(startTime);
+	query.setEndTime(endTime);
+	query.setRetrievalType(RetrievalType.RAW);
+	query.setGranularity(3600*1000);
+	query.setNumberOfValues(24);
+	for (mto in metricsToObjects.entrySet()) {
+	    query.include(mto.getValue(), mto.getKey());
+	}		
+	return ds.performQuery(query);
+}
