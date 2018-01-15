@@ -6,7 +6,7 @@ ds = server.DataService;
 
 def countLimit=50
 def logException = true
-org.apache.commons.logging.Log log = org.apache.commons.logging.LogFactory.getLog("Q2.groovy");
+org.apache.commons.logging.Log log = org.apache.commons.logging.LogFactory.getLog("ESXServerListPerHour.groovy");
 
 currentDate = new Date();
 
