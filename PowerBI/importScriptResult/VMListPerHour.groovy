@@ -6,7 +6,7 @@ ds = server.DataService;
 
 def countLimit=50
 def logException = false
-org.apache.commons.logging.Log log = org.apache.commons.logging.LogFactory.getLog("Q1.groovy");
+org.apache.commons.logging.Log log = org.apache.commons.logging.LogFactory.getLog("VMListPerHour.groovy");
 
 currentDate = new Date();
 
