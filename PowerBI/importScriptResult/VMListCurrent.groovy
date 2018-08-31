@@ -26,7 +26,8 @@ for (vm in vmSet) {
 	}
 	try{
 		isTemplate = vm.isTemplate;
-		if(isTemplate) {
+		vmState = ds.retrieveLatestValue(vm, "vmState")?.getValue();
+		if(isTemplate || (vmState == "poweredOff")) {
 			continue;
 		}
 		
